@@ -1,33 +1,52 @@
--- Tạo UI
-local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Parent = game.Players.LocalPlayer.PlayerGui
+-- Tạo nút ghim người chơi gần đó
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local playerGui = LocalPlayer:WaitForChild("PlayerGui")
 
-local Frame = Instance.new("Frame")
-Frame.Size = UDim2.new(0, 200, 0, 200)
-Frame.Position = UDim2.new(0.5, -100, 0.5, -100)
-Frame.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-Frame.BorderSizePixel = 2
-Frame.BorderColor3 = Color3.fromRGB(0, 0, 0)
-Frame.Parent = ScreenGui
+-- Tạo ScreenGui nếu chưa có
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "GhimNguoiChoiGui"
+screenGui.Parent = playerGui
 
--- Tạo button để bật/tắt aimlock
-local aimlockButton = Instance.new("TextButton")
-aimlockButton.Size = UDim2.new(0, 100, 0, 30)
-aimlockButton.Position = UDim2.new(0.5, -50, 0.1, 0)
-aimlockButton.Text = "Aimlock: OFF"
-aimlockButton.Parent = Frame
+-- Tạo nút
+local ghimButton = Instance.new("TextButton")
+ghimButton.Name = "GhimNguoiChoiButton"
+ghimButton.Size = UDim2.new(0, 17, 0, 17) -- Kích thước 17x17
+ghimButton.Position = UDim2.new(0, 10, 0, 10) -- Vị trí góc trên trái
+ghimButton.Text = "📍" -- Biểu tượng ghim
+ghimButton.TextScaled = true
+ghimButton.BackgroundColor3 = Color3.fromRGB(255, 200, 0)
+ghimButton.Parent = screenGui
 
--- Biến để kiểm tra trạng thái aimlock
-local aimlockEnabled = false
+-- Hàm tìm người chơi gần nhất
+local function timNguoiChoiGanNhat()
+	local nhanVat = LocalPlayer.Character
+	if not nhanVat or not nhanVat:FindFirstChild("HumanoidRootPart") then return end
 
--- Hàm để bật/tắt aimlock
-local function toggleAimlock()
-    aimlockEnabled = not aimlockEnabled
-    if aimlockEnabled then
-        aimlockButton.Text = "Aimlock: ON"
-    else
-        aimlockButton.Text = "Aimlock: OFF"
-    end
+	local viTriNguoiChoi = nhanVat.HumanoidRootPart.Position
+	local nguoiGanNhat = nil
+	local khoangCachGanNhat = math.huge
+
+	for _, nguoiChoi in pairs(Players:GetPlayers()) do
+		if nguoiChoi ~= LocalPlayer and nguoiChoi.Character and nguoiChoi.Character:FindFirstChild("HumanoidRootPart") then
+			local viTriKhac = nguoiChoi.Character.HumanoidRootPart.Position
+			local kc = (viTriKhac - viTriNguoiChoi).Magnitude
+			if kc < khoangCachGanNhat then
+				khoangCachGanNhat = kc
+				nguoiGanNhat = nguoiChoi
+			end
+		end
+	end
+
+	return nguoiGanNhat
 end
 
--- Kết nối hàm
+-- Khi bấm nút
+ghimButton.MouseButton1Click:Connect(function()
+	local nguoiGanNhat = timNguoiChoiGanNhat()
+	if nguoiGanNhat then
+		print("🔹 Đã ghim người chơi gần nhất: " .. nguoiGanNhat.Name)
+	else
+		print("❌ Không tìm thấy người chơi gần đó.")
+	end
+end)
