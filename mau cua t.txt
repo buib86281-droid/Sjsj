@@ -1,213 +1,173 @@
--- LocalScript: Draggable 45x45 Lock-On Button (Roblox Studio friendly)
--- Dán vào StarterGui trong một ScreenGui
+-- ⚡ Speed Controller v2 - GUI hợp pháp cho Roblox Studio
+-- Tác giả: Duongtaplamscript
 
-local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
+local player = game.Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
 
-local LocalPlayer = Players.LocalPlayer
-local Camera = workspace.CurrentCamera
-local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
-
--- Tạo ScreenGui nếu cần (nếu bạn đã có ScreenGui, có thể bỏ phần này và dán script vào trong ScreenGui đó)
+-- Tạo GUI chính
 local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "LockOnGui"
+screenGui.Name = "SpeedControllerV2"
 screenGui.ResetOnSpawn = false
-screenGui.Parent = PlayerGui
+screenGui.IgnoreGuiInset = true
+screenGui.Parent = playerGui
 
--- Tạo nút 45x45
-local button = Instance.new("TextButton")
-button.Name = "LockButton"
-button.Size = UDim2.fromOffset(45, 45)
-button.Position = UDim2.new(0, 20, 0.8, 0) -- mặc định, bạn có thể kéo nó đi
-button.AnchorPoint = Vector2.new(0,0)
-button.Text = "Lock"
-button.Font = Enum.Font.SourceSansBold
-button.TextSize = 18
-button.BackgroundColor3 = Color3.fromRGB(40,40,40)
-button.TextColor3 = Color3.fromRGB(255,255,255)
-button.BorderSizePixel = 0
-button.AutoButtonColor = false
-button.Parent = screenGui
+-- Tạo khung chính
+local mainFrame = Instance.new("Frame")
+mainFrame.Size = UDim2.new(0, 260, 0, 150)
+mainFrame.Position = UDim2.new(0.4, 0, 0.7, 0)
+mainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+mainFrame.BorderSizePixel = 0
+mainFrame.Active = true
+mainFrame.Draggable = true
+mainFrame.Parent = screenGui
 
--- Tùy chọn nhìn/lock
-local FOV = 120 -- độ
-local LockedTarget = nil
-local Locking = false
-local Smoothness = 0.18 -- 0..1 (giá nhỏ hơn = mượt/chậm hơn)
-local MaxTargetDistance = 250 -- tối đa khoảng cách xét target (tùy chỉnh)
+-- Bo góc
+local corner = Instance.new("UICorner")
+corner.CornerRadius = UDim.new(0, 10)
+corner.Parent = mainFrame
 
--- Hàm tìm người gần nhất nằm trong FOV
-local function GetClosestPlayer()
-	local closest = nil
-	local bestDist = math.huge
-	local camPos = Camera.CFrame.Position
-	local camDir = Camera.CFrame.LookVector
+-- Hiệu ứng bóng
+local shadow = Instance.new("ImageLabel")
+shadow.Parent = mainFrame
+shadow.AnchorPoint = Vector2.new(0.5, 0.5)
+shadow.Position = UDim2.new(0.5, 0, 0.5, 5)
+shadow.Size = UDim2.new(1, 20, 1, 20)
+shadow.BackgroundTransparency = 1
+shadow.Image = "rbxassetid://1316045217"
+shadow.ImageColor3 = Color3.fromRGB(0, 0, 0)
+shadow.ImageTransparency = 0.5
+shadow.ZIndex = 0
 
-	for _, pl in pairs(Players:GetPlayers()) do
-		if pl ~= LocalPlayer then
-			local char = pl.Character
-			if char and char:FindFirstChild("HumanoidRootPart") and char:FindFirstChildOfClass("Humanoid") and char:FindFirstChildOfClass("Humanoid").Health > 0 then
-				local hrp = char.HumanoidRootPart
-				local toTarget = hrp.Position - camPos
-				local dist = toTarget.Magnitude
-				if dist <= MaxTargetDistance then
-					-- tránh vector.zero
-					local dir = toTarget.Unit
-					local dot = camDir:Dot(dir)
-					-- clamp vì dot có thể hơi vượt do số thực
-					if dot > 1 then dot = 1 elseif dot < -1 then dot = -1 end
-					local angle = math.deg(math.acos(dot))
-					if angle <= (FOV / 2) then
-						if dist < bestDist then
-							bestDist = dist
-							closest = pl
-						end
-					end
-				end
-			end
-		end
-	end
+-- Tiêu đề
+local title = Instance.new("TextLabel")
+title.Size = UDim2.new(1, 0, 0, 30)
+title.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+title.Text = "⚡ Speed Controller"
+title.TextColor3 = Color3.fromRGB(255, 255, 255)
+title.Font = Enum.Font.GothamBold
+title.TextSize = 16
+title.Parent = mainFrame
 
-	return closest
+local titleCorner = Instance.new("UICorner")
+titleCorner.CornerRadius = UDim.new(0, 10)
+titleCorner.Parent = title
+
+-- Nhãn tốc độ
+local speedLabel = Instance.new("TextLabel")
+speedLabel.Size = UDim2.new(1, -20, 0, 25)
+speedLabel.Position = UDim2.new(0, 10, 0, 40)
+speedLabel.BackgroundTransparency = 1
+speedLabel.TextColor3 = Color3.new(1, 1, 1)
+speedLabel.Font = Enum.Font.Gotham
+speedLabel.TextSize = 14
+speedLabel.Text = "Tốc độ hiện tại: 16"
+speedLabel.Parent = mainFrame
+
+-- Thanh trượt nền
+local sliderBack = Instance.new("Frame")
+sliderBack.Size = UDim2.new(1, -40, 0, 8)
+sliderBack.Position = UDim2.new(0, 20, 0, 75)
+sliderBack.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
+sliderBack.BorderSizePixel = 0
+sliderBack.Parent = mainFrame
+
+local sliderCorner = Instance.new("UICorner")
+sliderCorner.CornerRadius = UDim.new(0, 5)
+sliderCorner.Parent = sliderBack
+
+-- Thanh màu (fill)
+local sliderFill = Instance.new("Frame")
+sliderFill.Size = UDim2.new(0, 0, 1, 0)
+sliderFill.BackgroundColor3 = Color3.fromRGB(0, 170, 255)
+sliderFill.BorderSizePixel = 0
+sliderFill.Parent = sliderBack
+
+local fillCorner = Instance.new("UICorner")
+fillCorner.CornerRadius = UDim.new(0, 5)
+fillCorner.Parent = sliderFill
+
+-- Nút trượt
+local slider = Instance.new("Frame")
+slider.Size = UDim2.new(0, 20, 0, 20)
+slider.Position = UDim2.new(0, 0, -0.7, 0)
+slider.BackgroundColor3 = Color3.fromRGB(0, 200, 255)
+slider.BorderSizePixel = 0
+slider.Parent = sliderBack
+
+local sliderCorner2 = Instance.new("UICorner")
+sliderCorner2.CornerRadius = UDim.new(1, 0)
+sliderCorner2.Parent = slider
+
+-- Nút Reset
+local resetButton = Instance.new("TextButton")
+resetButton.Size = UDim2.new(0, 100, 0, 30)
+resetButton.Position = UDim2.new(0.5, -50, 0, 110)
+resetButton.BackgroundColor3 = Color3.fromRGB(0, 150, 255)
+resetButton.TextColor3 = Color3.new(1, 1, 1)
+resetButton.Font = Enum.Font.GothamBold
+resetButton.TextSize = 14
+resetButton.Text = "Reset"
+resetButton.Parent = mainFrame
+
+local btnCorner = Instance.new("UICorner")
+btnCorner.CornerRadius = UDim.new(0, 6)
+btnCorner.Parent = resetButton
+
+-- Logic thay đổi tốc độ
+local userInput = game:GetService("UserInputService")
+local draggingSlider = false
+local humanoid = player.Character and player.Character:FindFirstChild("Humanoid")
+local currentSpeed = 16
+
+player.CharacterAdded:Connect(function(char)
+	humanoid = char:WaitForChild("Humanoid")
+	humanoid.WalkSpeed = currentSpeed
+end)
+
+local function setSpeed(speed)
+	currentSpeed = math.clamp(speed, 10, 100)
+	if humanoid then humanoid.WalkSpeed = currentSpeed end
+	speedLabel.Text = "Tốc độ hiện tại: " .. currentSpeed
 end
 
--- Cập nhật camera mượt khi đang lock
-RunService.RenderStepped:Connect(function(dt)
-	if Locking and LockedTarget and LockedTarget.Character and LockedTarget.Character:FindFirstChild("HumanoidRootPart") then
-		local hrp = LockedTarget.Character.HumanoidRootPart
-		-- nếu target chết hay mất thì tự unlock
-		local hum = LockedTarget.Character:FindFirstChildOfClass("Humanoid")
-		if not hum or hum.Health <= 0 then
-			Locking = false
-			LockedTarget = nil
-			button.Text = "Lock"
-			button.BackgroundColor3 = Color3.fromRGB(40,40,40)
-			return
-		end
+local function updateSlider(x)
+	local sliderWidth = sliderBack.AbsoluteSize.X
+	local relativePos = math.clamp(x - sliderBack.AbsolutePosition.X, 0, sliderWidth)
+	slider.Position = UDim2.new(0, relativePos - slider.AbsoluteSize.X / 2, slider.Position.Y.Scale, slider.Position.Y.Offset)
+	sliderFill.Size = UDim2.new(0, relativePos, 1, 0)
 
-		local current = Camera.CFrame
-		local goal = CFrame.new(current.Position, hrp.Position)
-		-- Lerp between current and goal for smoothing
-		Camera.CFrame = current:Lerp(goal, Smoothness)
-	end
-end)
-
--- Khi bấm nút: lock/unlock
-button.MouseButton1Click:Connect(function()
-	if not Locking then
-		local target = GetClosestPlayer()
-		if target then
-			LockedTarget = target
-			Locking = true
-			button.Text = "Unlock"
-			button.BackgroundColor3 = Color3.fromRGB(75,160,75) -- xanh khi lock
-		else
-			-- thông báo nhanh nếu không có mục tiêu
-			local old = button.Text
-			button.Text = "No Target"
-			task.delay(0.6, function()
-				if not Locking then
-					button.Text = old
-				end
-			end)
-		end
-	else
-		-- unlock
-		Locking = false
-		LockedTarget = nil
-		button.Text = "Lock"
-		button.BackgroundColor3 = Color3.fromRGB(40,40,40)
-	end
-end)
-
--- ========== Dragging (hỗ trợ chuột và cảm ứng) ==========
--- Implementation: track input delta, di chuyển button theo kích thước màn hình
-
-button.Active = true
-
-local dragging = false
-local dragInput = nil
-local dragStart = nil
-local startPos = nil
-
-local function updatePosition(input)
-	local delta = input.Position - dragStart
-	local newX = startPos.X.Offset + delta.X
-	local newY = startPos.Y.Offset + delta.Y
-
-	-- giữ nút trong màn hình (clamp)
-	local screenX = button.Parent.AbsoluteSize.X
-	local screenY = button.Parent.AbsoluteSize.Y
-	local btnW = button.AbsoluteSize.X
-	local btnH = button.AbsoluteSize.Y
-
-	if newX < 0 then newX = 0 end
-	if newY < 0 then newY = 0 end
-	if newX > screenX - btnW then newX = screenX - btnW end
-	if newY > screenY - btnH then newY = screenY - btnH end
-
-	button.Position = UDim2.new(0, newX, 0, newY)
+	local percent = relativePos / sliderWidth
+	local speed = math.floor(10 + percent * 90)
+	setSpeed(speed)
 end
 
-button.InputBegan:Connect(function(input)
-	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-		dragging = true
-		dragStart = input.Position
-		startPos = Vector2.new(button.Position.X, button.Position.Y)
-		-- store as UDim2 parts for offsets
-		startPos = { X = button.Position, Y = button.Position }
-		-- but easier: copy current absolute offset
-		startPos = { X = button.Position, Y = button.Position }
-		startPos.X = button.Position
-		startPos.Y = button.Position
-		-- since we need numeric offsets, get AbsolutePosition
-		startPos = { X = UDim2.fromOffset(button.AbsolutePosition.X, 0), Y = UDim2.fromOffset(0, button.AbsolutePosition.Y) }
-		-- simpler: store numeric offsets
-		startPos = { X = button.AbsolutePosition.X, Y = button.AbsolutePosition.Y }
-
-		dragInput = input
-		-- Capture movement events
-		input.Changed:Connect(function()
-			if input.UserInputState == Enum.UserInputState.End then
-				dragging = false
-			end
-		end)
+slider.InputBegan:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 then
+		draggingSlider = true
 	end
 end)
 
--- Use InputChanged to track movement (MouseMovement or Touch)
-LocalPlayer:GetMouse().Move:Connect(function()
-	-- noop: to ensure mouse exists on all platforms
-end)
-
-game:GetService("UserInputService").InputChanged:Connect(function(input)
-	if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-		-- compute delta relative to initial dragStart
-		local delta = input.Position - dragStart
-		local newX = startPos.X + delta.X
-		local newY = startPos.Y + delta.Y
-
-		-- clamp to screen
-		local screenX = screenGui.AbsoluteSize.X
-		local screenY = screenGui.AbsoluteSize.Y
-		local btnW = button.AbsoluteSize.X
-		local btnH = button.AbsoluteSize.Y
-
-		if newX < 0 then newX = 0 end
-		if newY < 0 then newY = 0 end
-		if newX > screenX - btnW then newX = screenX - btnW end
-		if newY > screenY - btnH then newY = screenY - btnH end
-
-		button.Position = UDim2.new(0, newX, 0, newY)
+sliderBack.InputBegan:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 then
+		updateSlider(input.Position.X)
+		draggingSlider = true
 	end
 end)
 
--- Ensure dragging ends if input ends
-game:GetService("UserInputService").InputEnded:Connect(function(input)
-	if input == dragInput then
-		dragging = false
-		dragInput = nil
+userInput.InputChanged:Connect(function(input)
+	if draggingSlider and input.UserInputType == Enum.UserInputType.MouseMovement then
+		updateSlider(input.Position.X)
 	end
 end)
 
--- ========== End of script ==========
+userInput.InputEnded:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 then
+		draggingSlider = false
+	end
+end)
+
+resetButton.MouseButton1Click:Connect(function()
+	setSpeed(16)
+	slider.Position = UDim2.new(0, 0, -0.7, 0)
+	sliderFill.Size = UDim2.new(0, 0, 1, 0)
+end)
