@@ -1,0 +1,296 @@
+-- PinHeadButton v1 (LocalScript)
+-- Button 80x60 kéo được, khi ấn pin (visual) người chơi gần nhất trong FOV 80
+-- Chạy client-side, không tác động đến người khác
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local Workspace = game:GetService("Workspace")
+
+local localPlayer = Players.LocalPlayer or Players.PlayerAdded:Wait()
+local camera = Workspace:WaitForChild("CurrentCamera")
+
+-- Cấu hình
+local FOV_DEG = 80       -- tổng FOV
+local MAX_DIST = 200     -- khoảng cách tối đa (studs)
+local TETHER_THICKNESS = 0.12
+local TETHER_COLOR = Color3.fromRGB(180,100,255)
+
+-- State
+local pinned = false
+local pinnedTarget = nil
+
+-- Gui: ScreenGui + Button (80x60)
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "PinHeadGui"
+screenGui.ResetOnSpawn = false
+screenGui.Parent = localPlayer:WaitForChild("PlayerGui")
+
+local btn = Instance.new("TextButton")
+btn.Name = "PinHeadButton"
+btn.Size = UDim2.new(0, 80, 0, 60)         -- kích thước 80x60
+btn.Position = UDim2.new(0.85, 0, 0.8, 0)
+btn.AnchorPoint = Vector2.new(0,0)
+btn.BackgroundColor3 = Color3.fromRGB(120, 0, 255)
+btn.Text = "📌 Pin"
+btn.TextColor3 = Color3.fromRGB(255,255,255)
+btn.Font = Enum.Font.GothamBold
+btn.TextSize = 20
+btn.Active = true
+btn.Selectable = true
+btn.Parent = screenGui
+local ucorner = Instance.new("UICorner", btn); ucorner.CornerRadius = UDim.new(0,10)
+
+-- Optional: nhỏ label hiển thị tên
+local nameLabel = Instance.new("TextLabel")
+nameLabel.Size = UDim2.new(0, 240, 0, 28)
+nameLabel.Position = UDim2.new(0.5, -120, 0.06, 0)
+nameLabel.BackgroundTransparency = 1
+nameLabel.TextColor3 = Color3.fromRGB(230, 200, 255)
+nameLabel.Font = Enum.Font.GothamSemibold
+nameLabel.TextSize = 18
+nameLabel.Text = ""
+nameLabel.Parent = screenGui
+
+-- Visual objects (local) - created when pinning
+local tetherPart = nil        -- cylinder part used as tether (local)
+local billboard = nil         -- BillboardGui attached to target head (client-side via Adornee)
+local highlight = nil         -- highlight instance (client-side)
+
+-- Helper: tìm nearest player (player object) trong FOV và trong MAX_DIST
+local function getNearestPlayerInFOV()
+	local camCFrame = camera.CFrame
+	local camPos = camCFrame.Position
+	local camForward = camCFrame.LookVector
+
+	local nearest = nil
+	local nearestDist = math.huge
+
+	for _, pl in ipairs(Players:GetPlayers()) do
+		if pl ~= localPlayer and pl.Character and pl.Character:FindFirstChild("Head") then
+			local head = pl.Character.Head
+			local toHead = head.Position - camPos
+			local dist = toHead.Magnitude
+			if dist <= MAX_DIST then
+				local dot = camForward:Dot(toHead.Unit)
+				local angle = math.deg(math.acos(math.clamp(dot, -1, 1)))
+				if angle <= FOV_DEG/2 then
+					if dist < nearestDist then
+						nearestDist = dist
+						nearest = pl
+					end
+				end
+			end
+		end
+	end
+
+	return nearest, nearestDist
+end
+
+-- Tạo tether part (cylinder) local (không can thiệp server)
+local function createTether()
+	if tetherPart and tetherPart.Parent then return end
+	tetherPart = Instance.new("Part")
+	tetherPart.Name = "PinTether_Local"
+	tetherPart.Anchored = true
+	tetherPart.CanCollide = false
+	tetherPart.CastShadow = false
+	tetherPart.Transparency = 0
+	tetherPart.Size = Vector3.new(TETHER_THICKNESS, 0.01, TETHER_THICKNESS)
+	tetherPart.Material = Enum.Material.Neon
+	tetherPart.Color = TETHER_COLOR
+	tetherPart.Parent = Workspace
+	local mesh = Instance.new("CylinderMesh", tetherPart)
+	mesh.Name = "CylinderMesh"
+end
+
+local function removeTether()
+	if tetherPart then
+		pcall(function() tetherPart:Destroy() end)
+		tetherPart = nil
+	end
+end
+
+-- Cập nhật vị trí tether giữa vị trí a và b
+local function updateTetherBetween(aPos, bPos)
+	if not tetherPart then return end
+	local mid = (aPos + bPos) * 0.5
+	local diff = bPos - aPos
+	local len = diff.Magnitude
+	if len < 0.001 then
+		tetherPart.Size = Vector3.new(TETHER_THICKNESS, 0.01, TETHER_THICKNESS)
+		tetherPart.CFrame = CFrame.new(mid)
+		return
+	end
+	tetherPart.Size = Vector3.new(TETHER_THICKNESS, len, TETHER_THICKNESS)
+	-- orient cylinder: CylinderMesh uses Y as height, but CFrame lookAt uses -Z; rotate by 90deg around X
+	local look = CFrame.new(mid, bPos)
+	local rot = look * CFrame.Angles(math.pi/2, 0, 0)
+	tetherPart.CFrame = rot
+end
+
+-- Tạo BillboardGui (pin icon) hiển thị ngay trên đầu target (client-side)
+local function createBillboardForTarget(targetHead)
+	if billboard and billboard.Parent then billboard:Destroy(); billboard = nil end
+	billboard = Instance.new("BillboardGui")
+	billboard.Name = "PinBillboard_Local"
+	billboard.Adornee = targetHead
+	billboard.Size = UDim2.new(0,100,0,40)
+	billboard.StudsOffset = Vector3.new(0, 0.6, 0)
+	billboard.AlwaysOnTop = true
+	billboard.Parent = screenGui
+
+	local frame = Instance.new("Frame", billboard)
+	frame.Size = UDim2.new(1,0,1,0)
+	frame.BackgroundTransparency = 0.2
+	frame.BackgroundColor3 = TETHER_COLOR
+	frame.BorderSizePixel = 0
+	Instance.new("UICorner", frame).CornerRadius = UDim.new(0,8)
+
+	local label = Instance.new("TextLabel", frame)
+	label.Size = UDim2.new(1,-8,1,-8)
+	label.Position = UDim2.new(0,4,0,4)
+	label.BackgroundTransparency = 1
+	label.Text = "📍Pinned"
+	label.TextColor3 = Color3.new(1,1,1)
+	label.Font = Enum.Font.GothamBold
+	label.TextSize = 14
+	label.TextStrokeTransparency = 0.7
+end
+
+local function removeBillboard()
+	if billboard then
+		pcall(function() billboard:Destroy() end)
+		billboard = nil
+	end
+end
+
+-- Tạo Highlight client-side (nhìn ngầu)
+local function createHighlight(targetChar)
+	if highlight and highlight.Parent then highlight:Destroy() end
+	highlight = Instance.new("Highlight")
+	highlight.Adornee = targetChar
+	highlight.FillColor = TETHER_COLOR
+	highlight.OutlineColor = Color3.new(1,1,1)
+	highlight.FillTransparency = 0.5
+	highlight.Parent = targetChar
+end
+
+local function removeHighlight()
+	if highlight then
+		pcall(function() highlight:Destroy() end)
+		highlight = nil
+	end
+end
+
+-- Bật pin (visual)
+local function startPin(targetPlayer)
+	if not targetPlayer or not targetPlayer.Character then return end
+	local targetHead = targetPlayer.Character:FindFirstChild("Head")
+	if not targetHead then return end
+
+	-- tạo visual
+	createTether()
+	createBillboardForTarget(targetHead)
+	createHighlight(targetPlayer.Character)
+	pinned = true
+	pinnedTarget = targetPlayer
+	nameLabel.Text = "Ghim: " .. (targetPlayer.DisplayName or targetPlayer.Name)
+end
+
+-- Tắt pin (dọn dẹp)
+local function stopPin()
+	pinned = false
+	pinnedTarget = nil
+	nameLabel.Text = ""
+	removeTether()
+	removeBillboard()
+	removeHighlight()
+end
+
+-- Toggle khi ấn nút
+btn.MouseButton1Click:Connect(function()
+	if pinned then
+		stopPin()
+		return
+	end
+
+	local target, dist = getNearestPlayerInFOV()
+	if target then
+		startPin(target)
+	else
+		nameLabel.Text = "Không ai trong FOV"
+		task.delay(1.2, function() if nameLabel and nameLabel.Parent then nameLabel.Text = "" end end)
+	end
+end)
+
+-- Update tether mỗi frame để bám theo target
+RunService.RenderStepped:Connect(function()
+	if pinned and pinnedTarget and pinnedTarget.Character and pinnedTarget.Character:FindFirstChild("Head") then
+		-- lấy vị trí phát ra (dùng camera position để tiện mobile/firstperson)
+		local aPos = camera.CFrame.Position
+		-- vị trí target head
+		local bPos = pinnedTarget.Character.Head.Position
+		-- update tether
+		updateTetherBetween(aPos, bPos)
+		-- keep billboard (BillboardGui Adornee handles itself)
+	else
+		-- nếu target mất (thoát/respawn) thì tắt pin
+		if pinned then
+			stopPin()
+		end
+	end
+end)
+
+-- Cleanup on respawn / leaving
+local function onCharAdded(char)
+	-- ensure remove old visuals (they are client-local)
+	stopPin()
+end
+local function onPlayerRemoving(pl)
+	if pl == pinnedTarget then stopPin() end
+end
+
+local function onLocalCharAdded(char)
+	task.delay(0.15, function()
+		-- nothing special, but ensure tether removed
+		removeTether()
+	end)
+end
+
+Players.PlayerRemoving:Connect(onPlayerRemoving)
+localPlayer.CharacterAdded:Connect(onLocalCharAdded)
+
+-- Support touch dragging: use built-in Draggable flag; for better mobile drag you can add Input handlers (optional)
+-- (btn.Draggable = true already set)
+
+-- Helper: reuse nearest function declared above
+-- (we define it here as local for closure)
+function getNearestPlayerInFOV()
+	local camCFrame = camera.CFrame
+	local camPos = camCFrame.Position
+	local camForward = camCFrame.LookVector
+
+	local nearest = nil
+	local nearestDist = math.huge
+
+	for _, pl in ipairs(Players:GetPlayers()) do
+		if pl ~= localPlayer and pl.Character and pl.Character:FindFirstChild("Head") then
+			local head = pl.Character.Head
+			local toHead = head.Position - camPos
+			local dist = toHead.Magnitude
+			if dist <= MAX_DIST then
+				local dot = camForward:Dot(toHead.Unit)
+				local angle = math.deg(math.acos(math.clamp(dot, -1, 1)))
+				if angle <= FOV_DEG/2 then
+					if dist < nearestDist then
+						nearestDist = dist
+						nearest = pl
+					end
+				end
+			end
+		end
+	end
+
+	return nearest, nearestDist
+end
