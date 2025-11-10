@@ -1,5 +1,5 @@
--- ⚡ Speed Controller v2 - GUI hợp pháp cho Roblox Studio (Đã sửa kéo thanh)
--- Tác giả: Duongdev
+-- ⚡ Speed Controller v2 - Hợp pháp & hỗ trợ Mobile
+-- Tác giả: Nigger
 
 local player = game.Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
@@ -20,21 +20,7 @@ mainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
 mainFrame.BorderSizePixel = 0
 mainFrame.Active = true
 mainFrame.Parent = screenGui
-
--- Bo góc + bóng
-local corner = Instance.new("UICorner", mainFrame)
-corner.CornerRadius = UDim.new(0, 10)
-
-local shadow = Instance.new("ImageLabel")
-shadow.Parent = mainFrame
-shadow.AnchorPoint = Vector2.new(0.5, 0.5)
-shadow.Position = UDim2.new(0.5, 0, 0.5, 5)
-shadow.Size = UDim2.new(1, 20, 1, 20)
-shadow.BackgroundTransparency = 1
-shadow.Image = "rbxassetid://1316045217"
-shadow.ImageColor3 = Color3.new(0, 0, 0)
-shadow.ImageTransparency = 0.5
-shadow.ZIndex = 0
+Instance.new("UICorner", mainFrame).CornerRadius = UDim.new(0, 10)
 
 -- Tiêu đề
 local title = Instance.new("TextLabel")
@@ -94,12 +80,11 @@ resetButton.Text = "Reset"
 resetButton.Parent = mainFrame
 Instance.new("UICorner", resetButton).CornerRadius = UDim.new(0, 6)
 
--- Logic tốc độ
+-- Biến & hàm logic
 local humanoid = player.Character and player.Character:FindFirstChild("Humanoid")
-local draggingSlider = false
-local draggingFrame = false
-local currentSpeed = 16
+local draggingSlider, draggingFrame = false, false
 local dragStart, startPos
+local currentSpeed = 16
 
 player.CharacterAdded:Connect(function(char)
 	humanoid = char:WaitForChild("Humanoid")
@@ -121,48 +106,57 @@ local function updateSlider(x)
 	setSpeed(math.floor(10 + percent * 90))
 end
 
--- Kéo thanh trượt
+-- 🖱️ / 📱 Drag thanh trượt (PC & Mobile)
+local function startSliderDrag(input)
+	draggingSlider = true
+	updateSlider(input.Position.X)
+end
+
+local function startFrameDrag(input)
+	draggingFrame = true
+	dragStart = input.Position
+	startPos = mainFrame.Position
+end
+
 slider.InputBegan:Connect(function(input)
-	if input.UserInputType == Enum.UserInputType.MouseButton1 then
-		draggingSlider = true
+	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+		startSliderDrag(input)
 	end
 end)
 
 sliderBack.InputBegan:Connect(function(input)
-	if input.UserInputType == Enum.UserInputType.MouseButton1 then
-		updateSlider(input.Position.X)
-		draggingSlider = true
+	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+		startSliderDrag(input)
+	end
+end)
+
+title.InputBegan:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+		startFrameDrag(input)
 	end
 end)
 
 userInput.InputChanged:Connect(function(input)
-	if draggingSlider and input.UserInputType == Enum.UserInputType.MouseMovement then
-		updateSlider(input.Position.X)
-	elseif draggingFrame and input.UserInputType == Enum.UserInputType.MouseMovement then
-		local delta = input.Position - dragStart
-		mainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+	if (draggingSlider or draggingFrame) and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+		if draggingSlider then
+			updateSlider(input.Position.X)
+		elseif draggingFrame then
+			local delta = input.Position - dragStart
+			mainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+		end
 	end
 end)
 
 userInput.InputEnded:Connect(function(input)
-	if input.UserInputType == Enum.UserInputType.MouseButton1 then
+	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
 		draggingSlider = false
 		draggingFrame = false
 	end
 end)
 
--- Reset
+-- Reset tốc độ
 resetButton.MouseButton1Click:Connect(function()
 	setSpeed(16)
 	slider.Position = UDim2.new(0, 0, -0.7, 0)
 	sliderFill.Size = UDim2.new(0, 0, 1, 0)
-end)
-
--- Kéo toàn bộ GUI bằng tiêu đề
-title.InputBegan:Connect(function(input)
-	if input.UserInputType == Enum.UserInputType.MouseButton1 then
-		draggingFrame = true
-		dragStart = input.Position
-		startPos = mainFrame.Position
-	end
 end)
