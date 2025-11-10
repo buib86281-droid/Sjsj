@@ -49,4 +49,272 @@ ghimButton.MouseButton1Click:Connect(function()
 	else
 		print("❌ Không tìm thấy người chơi gần đó.")
 	end
+end)--// LocalScript - Lock On Button
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local LocalPlayer = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
+
+-- Giao diện nút
+local ScreenGui = Instance.new("ScreenGui", LocalPlayer:WaitForChild("PlayerGui"))
+local Button = Instance.new("TextButton", ScreenGui)
+
+Button.Size = UDim2.new(0, 50, 0, 50)
+Button.Position = UDim2.new(0, 20, 0, 200)
+Button.Text = "Lock"
+Button.BackgroundColor3 = Color3.fromRGB(255, 80, 80)
+Button.TextColor3 = Color3.new(1,1,1)
+Button.BorderSizePixel = 0
+Button.Visible = true
+
+-- Cấu hình
+local FOV = 120 -- góc nhìn
+local LockedTarget = nil
+local Locking = false
+
+-- Hàm tìm người chơi gần nhất trong FOV
+local function GetClosestPlayer()
+	local closestPlayer = nil
+	local shortestDistance = math.huge
+	
+	for _, player in pairs(Players:GetPlayers()) do
+		if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+			local targetPos = player.Character.HumanoidRootPart.Position
+			local camPos = Camera.CFrame.Position
+			local dir = (targetPos - camPos).Unit
+			local camDir = Camera.CFrame.LookVector
+			
+			local angle = math.deg(math.acos(camDir:Dot(dir)))
+			
+			if angle <= FOV / 2 then
+				local distance = (camPos - targetPos).Magnitude
+				if distance < shortestDistance then
+					shortestDistance = distance
+					closestPlayer = player
+				end
+			end
+		end
+	end
+	
+	return closestPlayer
+end
+
+-- Ghim camera
+RunService.RenderStepped:Connect(function()
+	if Locking and LockedTarget and LockedTarget.Character and LockedTarget.Character:FindFirstChild("HumanoidRootPart") then
+		local targetHRP = LockedTarget.Character.HumanoidRootPart
+		Camera.CFrame = CFrame.new(Camera.CFrame.Position, targetHRP.Position)
+	end
+end)
+
+-- Khi ấn nút
+Button.MouseButton1Click:Connect(function()
+	if not Locking then
+		local target = GetClosestPlayer()
+		if target then
+			LockedTarget = target
+			Locking = true
+			Button.Text = "Unlock"
+			Button.BackgroundColor3 = Color3.fromRGB(80, 255, 80)
+		else
+			Button.Text = "NoTarget"
+			task.wait(0.5)
+			Button.Text = "Lock"
+		end
+	else
+		-- Bỏ ghim
+		Locking = false
+		LockedTarget = nil
+		Button.Text = "Lock"
+		Button.BackgroundColor3 = Color3.fromRGB(255, 80, 80)
+	end
+end)--// LocalScript - Smooth Lock On Button
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+local LocalPlayer = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
+
+-- Tạo nút GUI
+local ScreenGui = Instance.new("ScreenGui", LocalPlayer:WaitForChild("PlayerGui"))
+local Button = Instance.new("TextButton", ScreenGui)
+
+Button.Size = UDim2.new(0, 50, 0, 50)
+Button.Position = UDim2.new(0, 20, 0, 200)
+Button.Text = "Lock"
+Button.BackgroundColor3 = Color3.fromRGB(255, 80, 80)
+Button.TextColor3 = Color3.new(1,1,1)
+Button.BorderSizePixel = 0
+Button.AutoButtonColor = true
+Button.Visible = true
+
+-- Cấu hình
+local FOV = 120
+local LockedTarget = nil
+local Locking = false
+local Smoothness = 0.15 -- tốc độ mượt (0.1–0.3 là hợp lý)
+
+-- Hàm tìm người gần nhất trong FOV
+local function GetClosestPlayer()
+	local closestPlayer = nil
+	local shortestDistance = math.huge
+	
+	for _, player in pairs(Players:GetPlayers()) do
+		if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+			local targetPos = player.Character.HumanoidRootPart.Position
+			local camPos = Camera.CFrame.Position
+			local dir = (targetPos - camPos).Unit
+			local camDir = Camera.CFrame.LookVector
+			
+			local angle = math.deg(math.acos(camDir:Dot(dir)))
+			
+			if angle <= FOV / 2 then
+				local distance = (camPos - targetPos).Magnitude
+				if distance < shortestDistance then
+					shortestDistance = distance
+					closestPlayer = player
+				end
+			end
+		end
+	end
+	
+	return closestPlayer
+end
+
+-- Hàm camera lock-on mượt
+RunService.RenderStepped:Connect(function(dt)
+	if Locking and LockedTarget and LockedTarget.Character and LockedTarget.Character:FindFirstChild("HumanoidRootPart") then
+		local targetHRP = LockedTarget.Character.HumanoidRootPart
+		local currentCFrame = Camera.CFrame
+		local goalCFrame = CFrame.new(currentCFrame.Position, targetHRP.Position)
+		Camera.CFrame = currentCFrame:Lerp(goalCFrame, Smoothness)
+	end
+end)
+
+-- Khi nhấn nút
+Button.MouseButton1Click:Connect(function()
+	if not Locking then
+		local target = GetClosestPlayer()
+		if target then
+			LockedTarget = target
+			Locking = true
+			Button.Text = "Unlock"
+			Button.BackgroundColor3 = Color3.fromRGB(80, 255, 80)
+		else
+			Button.Text = "NoTarget"
+			task.wait(0.5)
+			Button.Text = "Lock"
+		end
+	else
+		-- Bỏ ghim
+		Locking = false
+		LockedTarget = nil
+		Button.Text = "Lock"
+		Button.BackgroundColor3 = Color3.fromRGB(255, 80, 80)
+	end
+end)--// LocalScript - Smooth Lock On + FOV Circle
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local LocalPlayer = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
+
+-- Tạo GUI
+local ScreenGui = Instance.new("ScreenGui", LocalPlayer:WaitForChild("PlayerGui"))
+
+-- Nút Lock
+local Button = Instance.new("TextButton", ScreenGui)
+Button.Size = UDim2.new(0, 50, 0, 50)
+Button.Position = UDim2.new(0, 20, 0, 200)
+Button.Text = "Lock"
+Button.BackgroundColor3 = Color3.fromRGB(255, 80, 80)
+Button.TextColor3 = Color3.new(1,1,1)
+Button.BorderSizePixel = 0
+Button.AutoButtonColor = true
+Button.Visible = true
+
+-- Vòng tròn FOV
+local FOVCircle = Instance.new("Frame", ScreenGui)
+FOVCircle.AnchorPoint = Vector2.new(0.5, 0.5)
+FOVCircle.Position = UDim2.new(0.5, 0, 0.5, 0)
+FOVCircle.Size = UDim2.new(0, 400, 0, 400) -- kích thước vòng tròn (tùy chỉnh theo FOV)
+FOVCircle.BackgroundTransparency = 1
+
+-- Thêm UIStroke để tạo viền trắng
+local stroke = Instance.new("UIStroke", FOVCircle)
+stroke.Thickness = 2
+stroke.Color = Color3.fromRGB(255, 255, 255)
+stroke.Transparency = 0.3
+
+-- Bo tròn hình vuông thành vòng tròn
+local corner = Instance.new("UICorner", FOVCircle)
+corner.CornerRadius = UDim.new(1, 0)
+
+-- Cấu hình
+local FOV = 120
+local LockedTarget = nil
+local Locking = false
+local Smoothness = 0.15 -- tốc độ xoay mượt
+
+-- Hàm tìm người chơi gần nhất trong FOV
+local function GetClosestPlayer()
+	local closestPlayer = nil
+	local shortestDistance = math.huge
+	
+	for _, player in pairs(Players:GetPlayers()) do
+		if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+			local targetPos = player.Character.HumanoidRootPart.Position
+			local camPos = Camera.CFrame.Position
+			local dir = (targetPos - camPos).Unit
+			local camDir = Camera.CFrame.LookVector
+			
+			local angle = math.deg(math.acos(camDir:Dot(dir)))
+			
+			if angle <= FOV / 2 then
+				local distance = (camPos - targetPos).Magnitude
+				if distance < shortestDistance then
+					shortestDistance = distance
+					closestPlayer = player
+				end
+			end
+		end
+	end
+	
+	return closestPlayer
+end
+
+-- Cập nhật camera mượt khi đang lock
+RunService.RenderStepped:Connect(function(dt)
+	if Locking and LockedTarget and LockedTarget.Character and LockedTarget.Character:FindFirstChild("HumanoidRootPart") then
+		local targetHRP = LockedTarget.Character.HumanoidRootPart
+		local currentCFrame = Camera.CFrame
+		local goalCFrame = CFrame.new(currentCFrame.Position, targetHRP.Position)
+		Camera.CFrame = currentCFrame:Lerp(goalCFrame, Smoothness)
+	end
+end)
+
+-- Khi nhấn nút
+Button.MouseButton1Click:Connect(function()
+	if not Locking then
+		local target = GetClosestPlayer()
+		if target then
+			LockedTarget = target
+			Locking = true
+			Button.Text = "Unlock"
+			Button.BackgroundColor3 = Color3.fromRGB(80, 255, 80)
+			stroke.Color = Color3.fromRGB(0, 255, 0) -- đổi vòng tròn thành xanh khi đang lock
+			stroke.Transparency = 0
+		else
+			Button.Text = "NoTarget"
+			task.wait(0.5)
+			Button.Text = "Lock"
+		end
+	else
+		-- Bỏ ghim
+		Locking = false
+		LockedTarget = nil
+		Button.Text = "Lock"
+		Button.BackgroundColor3 = Color3.fromRGB(255, 80, 80)
+		stroke.Color = Color3.fromRGB(255, 255, 255)
+		stroke.Transparency = 0.3
+	end
 end)
