@@ -1,32 +1,30 @@
--- ⚡ Speed Controller v2 - GUI hợp pháp cho Roblox Studio
--- Tác giả: Duongtaplamscript
+-- ⚡ Speed Controller v2 - GUI hợp pháp cho Roblox Studio (Đã sửa kéo thanh)
+-- Tác giả: Duongdev
 
 local player = game.Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
+local userInput = game:GetService("UserInputService")
 
--- Tạo GUI chính
+-- GUI chính
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "SpeedControllerV2"
 screenGui.ResetOnSpawn = false
 screenGui.IgnoreGuiInset = true
 screenGui.Parent = playerGui
 
--- Tạo khung chính
+-- Khung chính
 local mainFrame = Instance.new("Frame")
 mainFrame.Size = UDim2.new(0, 260, 0, 150)
 mainFrame.Position = UDim2.new(0.4, 0, 0.7, 0)
 mainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
 mainFrame.BorderSizePixel = 0
 mainFrame.Active = true
-mainFrame.Draggable = true
 mainFrame.Parent = screenGui
 
--- Bo góc
-local corner = Instance.new("UICorner")
+-- Bo góc + bóng
+local corner = Instance.new("UICorner", mainFrame)
 corner.CornerRadius = UDim.new(0, 10)
-corner.Parent = mainFrame
 
--- Hiệu ứng bóng
 local shadow = Instance.new("ImageLabel")
 shadow.Parent = mainFrame
 shadow.AnchorPoint = Vector2.new(0.5, 0.5)
@@ -34,7 +32,7 @@ shadow.Position = UDim2.new(0.5, 0, 0.5, 5)
 shadow.Size = UDim2.new(1, 20, 1, 20)
 shadow.BackgroundTransparency = 1
 shadow.Image = "rbxassetid://1316045217"
-shadow.ImageColor3 = Color3.fromRGB(0, 0, 0)
+shadow.ImageColor3 = Color3.new(0, 0, 0)
 shadow.ImageTransparency = 0.5
 shadow.ZIndex = 0
 
@@ -47,10 +45,7 @@ title.TextColor3 = Color3.fromRGB(255, 255, 255)
 title.Font = Enum.Font.GothamBold
 title.TextSize = 16
 title.Parent = mainFrame
-
-local titleCorner = Instance.new("UICorner")
-titleCorner.CornerRadius = UDim.new(0, 10)
-titleCorner.Parent = title
+Instance.new("UICorner", title).CornerRadius = UDim.new(0, 10)
 
 -- Nhãn tốc độ
 local speedLabel = Instance.new("TextLabel")
@@ -63,40 +58,29 @@ speedLabel.TextSize = 14
 speedLabel.Text = "Tốc độ hiện tại: 16"
 speedLabel.Parent = mainFrame
 
--- Thanh trượt nền
+-- Thanh trượt
 local sliderBack = Instance.new("Frame")
 sliderBack.Size = UDim2.new(1, -40, 0, 8)
 sliderBack.Position = UDim2.new(0, 20, 0, 75)
 sliderBack.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
 sliderBack.BorderSizePixel = 0
 sliderBack.Parent = mainFrame
+Instance.new("UICorner", sliderBack).CornerRadius = UDim.new(0, 5)
 
-local sliderCorner = Instance.new("UICorner")
-sliderCorner.CornerRadius = UDim.new(0, 5)
-sliderCorner.Parent = sliderBack
-
--- Thanh màu (fill)
 local sliderFill = Instance.new("Frame")
 sliderFill.Size = UDim2.new(0, 0, 1, 0)
 sliderFill.BackgroundColor3 = Color3.fromRGB(0, 170, 255)
 sliderFill.BorderSizePixel = 0
 sliderFill.Parent = sliderBack
+Instance.new("UICorner", sliderFill).CornerRadius = UDim.new(0, 5)
 
-local fillCorner = Instance.new("UICorner")
-fillCorner.CornerRadius = UDim.new(0, 5)
-fillCorner.Parent = sliderFill
-
--- Nút trượt
 local slider = Instance.new("Frame")
 slider.Size = UDim2.new(0, 20, 0, 20)
 slider.Position = UDim2.new(0, 0, -0.7, 0)
 slider.BackgroundColor3 = Color3.fromRGB(0, 200, 255)
 slider.BorderSizePixel = 0
 slider.Parent = sliderBack
-
-local sliderCorner2 = Instance.new("UICorner")
-sliderCorner2.CornerRadius = UDim.new(1, 0)
-sliderCorner2.Parent = slider
+Instance.new("UICorner", slider).CornerRadius = UDim.new(1, 0)
 
 -- Nút Reset
 local resetButton = Instance.new("TextButton")
@@ -108,16 +92,14 @@ resetButton.Font = Enum.Font.GothamBold
 resetButton.TextSize = 14
 resetButton.Text = "Reset"
 resetButton.Parent = mainFrame
+Instance.new("UICorner", resetButton).CornerRadius = UDim.new(0, 6)
 
-local btnCorner = Instance.new("UICorner")
-btnCorner.CornerRadius = UDim.new(0, 6)
-btnCorner.Parent = resetButton
-
--- Logic thay đổi tốc độ
-local userInput = game:GetService("UserInputService")
-local draggingSlider = false
+-- Logic tốc độ
 local humanoid = player.Character and player.Character:FindFirstChild("Humanoid")
+local draggingSlider = false
+local draggingFrame = false
 local currentSpeed = 16
+local dragStart, startPos
 
 player.CharacterAdded:Connect(function(char)
 	humanoid = char:WaitForChild("Humanoid")
@@ -135,12 +117,11 @@ local function updateSlider(x)
 	local relativePos = math.clamp(x - sliderBack.AbsolutePosition.X, 0, sliderWidth)
 	slider.Position = UDim2.new(0, relativePos - slider.AbsoluteSize.X / 2, slider.Position.Y.Scale, slider.Position.Y.Offset)
 	sliderFill.Size = UDim2.new(0, relativePos, 1, 0)
-
 	local percent = relativePos / sliderWidth
-	local speed = math.floor(10 + percent * 90)
-	setSpeed(speed)
+	setSpeed(math.floor(10 + percent * 90))
 end
 
+-- Kéo thanh trượt
 slider.InputBegan:Connect(function(input)
 	if input.UserInputType == Enum.UserInputType.MouseButton1 then
 		draggingSlider = true
@@ -157,17 +138,31 @@ end)
 userInput.InputChanged:Connect(function(input)
 	if draggingSlider and input.UserInputType == Enum.UserInputType.MouseMovement then
 		updateSlider(input.Position.X)
+	elseif draggingFrame and input.UserInputType == Enum.UserInputType.MouseMovement then
+		local delta = input.Position - dragStart
+		mainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
 	end
 end)
 
 userInput.InputEnded:Connect(function(input)
 	if input.UserInputType == Enum.UserInputType.MouseButton1 then
 		draggingSlider = false
+		draggingFrame = false
 	end
 end)
 
+-- Reset
 resetButton.MouseButton1Click:Connect(function()
 	setSpeed(16)
 	slider.Position = UDim2.new(0, 0, -0.7, 0)
 	sliderFill.Size = UDim2.new(0, 0, 1, 0)
+end)
+
+-- Kéo toàn bộ GUI bằng tiêu đề
+title.InputBegan:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 then
+		draggingFrame = true
+		dragStart = input.Position
+		startPos = mainFrame.Position
+	end
 end)
