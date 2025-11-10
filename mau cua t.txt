@@ -1,162 +1,361 @@
--- ⚡ Speed Controller v2 - Hợp pháp & hỗ trợ Mobile
--- Tác giả: Nigger
+-- ⚡ Speed + Jump + Gravity Controller v8 (Purple Theme)
+-- LocalScript (Đặt trong StarterGui) - Hợp pháp cho Roblox Studio
+-- Tác giả: Duongtaplamdev (tùy chỉnh cho bạn)
 
-local player = game.Players.LocalPlayer
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+local Lighting = game:GetService("Lighting")
+local HapticService_ok, HapticService = pcall(function() return game:GetService("HapticService") end)
+
+local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
-local userInput = game:GetService("UserInputService")
 
--- GUI chính
+-- =====================
+-- Helper: local persistence (cục bộ trong session)
+-- =====================
+local function ensureSettingsFolder()
+	local folder = player:FindFirstChild("SpeedJumpGravity_Settings")
+	if not folder then
+		folder = Instance.new("Folder")
+		folder.Name = "SpeedJumpGravity_Settings"
+		folder.Parent = player
+		local s = Instance.new("NumberValue"); s.Name = "WalkSpeed"; s.Value = 16; s.Parent = folder
+		local j = Instance.new("NumberValue"); j.Name = "JumpPower"; j.Value = 50; j.Parent = folder
+		local g = Instance.new("NumberValue"); g.Name = "Gravity"; g.Value = workspace.Gravity or 196.2; g.Parent = folder
+	end
+	return folder
+end
+
+local settings = ensureSettingsFolder()
+local function getSaved(name, default) 
+	local v = settings:FindFirstChild(name)
+	if v then return v.Value end
+	return default
+end
+local function save(name, value)
+	local v = settings:FindFirstChild(name)
+	if not v then
+		v = Instance.new("NumberValue"); v.Name = name; v.Parent = settings
+	end
+	v.Value = value
+end
+
+-- =====================
+-- Create GUI
+-- =====================
 local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "SpeedControllerV2"
+screenGui.Name = "SpeedJumpGravityV8_Purple"
 screenGui.ResetOnSpawn = false
 screenGui.IgnoreGuiInset = true
 screenGui.Parent = playerGui
 
--- Khung chính
-local mainFrame = Instance.new("Frame")
-mainFrame.Size = UDim2.new(0, 260, 0, 150)
-mainFrame.Position = UDim2.new(0.4, 0, 0.7, 0)
-mainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
-mainFrame.BorderSizePixel = 0
-mainFrame.Active = true
-mainFrame.Parent = screenGui
-Instance.new("UICorner", mainFrame).CornerRadius = UDim.new(0, 10)
+-- Blur effect (in Lighting)
+local blur = Instance.new("BlurEffect")
+blur.Name = "SpeedJumpGravityBlur_v8"
+blur.Parent = Lighting
+blur.Size = 0
+blur.Enabled = false
 
--- Tiêu đề
+-- Toggle button (small gear)
+local toggle = Instance.new("ImageButton")
+toggle.Name = "ToggleButton"
+toggle.Size = UDim2.new(0,45,0,45)
+toggle.Position = UDim2.new(0, 10, 1, -60)
+toggle.AnchorPoint = Vector2.new(0,0)
+toggle.BackgroundColor3 = Color3.fromRGB(40,40,40)
+toggle.BorderSizePixel = 0
+toggle.Image = "rbxassetid://7072718412" -- gear icon
+toggle.ImageColor3 = Color3.fromRGB(200,150,255)
+toggle.Parent = screenGui
+local tgCorner = Instance.new("UICorner", toggle); tgCorner.CornerRadius = UDim.new(1,0)
+
+-- Main frame (hidden initially)
+local main = Instance.new("Frame")
+main.Name = "MainFrame"
+main.Size = UDim2.new(0, 280, 0, 190)
+main.Position = UDim2.new(0.5, -140, 1.2, 0) -- hidden below screen initially
+main.BackgroundColor3 = Color3.fromRGB(18,12,28)
+main.BorderSizePixel = 0
+main.Active = true
+main.Parent = screenGui
+local mainCorner = Instance.new("UICorner", main); mainCorner.CornerRadius = UDim.new(0,10)
+
+-- Purple gradient background
+local mainGradient = Instance.new("UIGradient")
+mainGradient.Rotation = 45
+mainGradient.Color = ColorSequence.new{
+	ColorSequenceKeypoint.new(0, Color3.fromRGB(130,60,200)),
+	ColorSequenceKeypoint.new(1, Color3.fromRGB(200,120,255))
+}
+mainGradient.Parent = main
+
+-- Title bar (use to drag)
 local title = Instance.new("TextLabel")
-title.Size = UDim2.new(1, 0, 0, 30)
-title.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
-title.Text = "⚡ Speed Controller"
-title.TextColor3 = Color3.fromRGB(255, 255, 255)
+title.Name = "Title"
+title.Size = UDim2.new(1,0,0,28)
+title.Position = UDim2.new(0,0,0,0)
+title.BackgroundColor3 = Color3.fromRGB(30,20,40)
+title.BorderSizePixel = 0
+title.Text = "⚡ Speed • Jump • Gravity"
+title.TextColor3 = Color3.fromRGB(255,255,255)
 title.Font = Enum.Font.GothamBold
-title.TextSize = 16
-title.Parent = mainFrame
-Instance.new("UICorner", title).CornerRadius = UDim.new(0, 10)
+title.TextSize = 14
+title.Parent = main
+local titleCorner = Instance.new("UICorner", title); titleCorner.CornerRadius = UDim.new(0,10)
 
--- Nhãn tốc độ
-local speedLabel = Instance.new("TextLabel")
-speedLabel.Size = UDim2.new(1, -20, 0, 25)
-speedLabel.Position = UDim2.new(0, 10, 0, 40)
-speedLabel.BackgroundTransparency = 1
-speedLabel.TextColor3 = Color3.new(1, 1, 1)
-speedLabel.Font = Enum.Font.Gotham
-speedLabel.TextSize = 14
-speedLabel.Text = "Tốc độ hiện tại: 16"
-speedLabel.Parent = mainFrame
+-- Small note labels
+local labelSpeed = Instance.new("TextLabel"); labelSpeed.Size = UDim2.new(1,-20,0,20); labelSpeed.Position = UDim2.new(0,10,0,36);
+labelSpeed.BackgroundTransparency = 1; labelSpeed.TextColor3 = Color3.new(1,1,1); labelSpeed.Font = Enum.Font.Gotham; labelSpeed.TextSize = 13;
+labelSpeed.Text = "WalkSpeed: "..tostring(getSaved("WalkSpeed",16)); labelSpeed.Parent = main
 
--- Thanh trượt
-local sliderBack = Instance.new("Frame")
-sliderBack.Size = UDim2.new(1, -40, 0, 8)
-sliderBack.Position = UDim2.new(0, 20, 0, 75)
-sliderBack.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
-sliderBack.BorderSizePixel = 0
-sliderBack.Parent = mainFrame
-Instance.new("UICorner", sliderBack).CornerRadius = UDim.new(0, 5)
+local labelJump = Instance.new("TextLabel"); labelJump.Size = UDim2.new(1,-20,0,20); labelJump.Position = UDim2.new(0,10,0,92);
+labelJump.BackgroundTransparency = 1; labelJump.TextColor3 = Color3.new(1,1,1); labelJump.Font = Enum.Font.Gotham; labelJump.TextSize = 13;
+labelJump.Text = "JumpPower: "..tostring(getSaved("JumpPower",50)); labelJump.Parent = main
 
-local sliderFill = Instance.new("Frame")
-sliderFill.Size = UDim2.new(0, 0, 1, 0)
-sliderFill.BackgroundColor3 = Color3.fromRGB(0, 170, 255)
-sliderFill.BorderSizePixel = 0
-sliderFill.Parent = sliderBack
-Instance.new("UICorner", sliderFill).CornerRadius = UDim.new(0, 5)
+local labelGravity = Instance.new("TextLabel"); labelGravity.Size = UDim2.new(1,-20,0,20); labelGravity.Position = UDim2.new(0,10,0,148);
+labelGravity.BackgroundTransparency = 1; labelGravity.TextColor3 = Color3.new(1,1,1); labelGravity.Font = Enum.Font.Gotham; labelGravity.TextSize = 13;
+labelGravity.Text = "Gravity: "..tostring(math.floor(getSaved("Gravity",workspace.Gravity or 196.2))); labelGravity.Parent = main
 
-local slider = Instance.new("Frame")
-slider.Size = UDim2.new(0, 20, 0, 20)
-slider.Position = UDim2.new(0, 0, -0.7, 0)
-slider.BackgroundColor3 = Color3.fromRGB(0, 200, 255)
-slider.BorderSizePixel = 0
-slider.Parent = sliderBack
-Instance.new("UICorner", slider).CornerRadius = UDim.new(1, 0)
+-- Sound feedback
+local clickSound = Instance.new("Sound")
+clickSound.SoundId = "rbxassetid://9118823104"
+clickSound.Volume = 0.6
+clickSound.Parent = main
 
--- Nút Reset
-local resetButton = Instance.new("TextButton")
-resetButton.Size = UDim2.new(0, 100, 0, 30)
-resetButton.Position = UDim2.new(0.5, -50, 0, 110)
-resetButton.BackgroundColor3 = Color3.fromRGB(0, 150, 255)
-resetButton.TextColor3 = Color3.new(1, 1, 1)
-resetButton.Font = Enum.Font.GothamBold
-resetButton.TextSize = 14
-resetButton.Text = "Reset"
-resetButton.Parent = mainFrame
-Instance.new("UICorner", resetButton).CornerRadius = UDim.new(0, 6)
-
--- Biến & hàm logic
-local humanoid = player.Character and player.Character:FindFirstChild("Humanoid")
-local draggingSlider, draggingFrame = false, false
-local dragStart, startPos
-local currentSpeed = 16
-
-player.CharacterAdded:Connect(function(char)
-	humanoid = char:WaitForChild("Humanoid")
-	humanoid.WalkSpeed = currentSpeed
-end)
-
-local function setSpeed(speed)
-	currentSpeed = math.clamp(speed, 10, 100)
-	if humanoid then humanoid.WalkSpeed = currentSpeed end
-	speedLabel.Text = "Tốc độ hiện tại: " .. currentSpeed
+-- Create generic slider factory
+local function createSlider(yOffset)
+	local back = Instance.new("Frame")
+	back.Size = UDim2.new(1,-40,0,8)
+	back.Position = UDim2.new(0,20,0,yOffset)
+	back.BackgroundColor3 = Color3.fromRGB(60,40,70)
+	back.BorderSizePixel = 0
+	back.Parent = main
+	local backCorner = Instance.new("UICorner", back); backCorner.CornerRadius = UDim.new(0,5)
+	
+	local fill = Instance.new("Frame")
+	fill.Size = UDim2.new(0,0,1,0)
+	fill.Position = UDim2.new(0,0,0,0)
+	fill.BackgroundColor3 = Color3.fromRGB(200,150,255)
+	fill.BorderSizePixel = 0
+	fill.Parent = back
+	local fillCorner = Instance.new("UICorner", fill); fillCorner.CornerRadius = UDim.new(0,5)
+	
+	local knob = Instance.new("Frame")
+	knob.Size = UDim2.new(0,16,0,16)
+	knob.Position = UDim2.new(0,0,-0.8,0)
+	knob.BackgroundColor3 = Color3.fromRGB(255,255,255)
+	knob.BorderSizePixel = 0
+	knob.Parent = back
+	local knobCorner = Instance.new("UICorner", knob); knobCorner.CornerRadius = UDim.new(1,0)
+	
+	return back, fill, knob
 end
 
-local function updateSlider(x)
-	local sliderWidth = sliderBack.AbsoluteSize.X
-	local relativePos = math.clamp(x - sliderBack.AbsolutePosition.X, 0, sliderWidth)
-	slider.Position = UDim2.new(0, relativePos - slider.AbsoluteSize.X / 2, slider.Position.Y.Scale, slider.Position.Y.Offset)
-	sliderFill.Size = UDim2.new(0, relativePos, 1, 0)
-	local percent = relativePos / sliderWidth
-	setSpeed(math.floor(10 + percent * 90))
-end
+local speedBack, speedFill, speedKnob = createSlider(60)
+local jumpBack, jumpFill, jumpKnob = createSlider(116)
+local gravBack, gravFill, gravKnob = createSlider(172)
 
--- 🖱️ / 📱 Drag thanh trượt (PC & Mobile)
-local function startSliderDrag(input)
-	draggingSlider = true
-	updateSlider(input.Position.X)
-end
+-- Reset button small
+local resetBtn = Instance.new("TextButton")
+resetBtn.Size = UDim2.new(0,84,0,24)
+resetBtn.Position = UDim2.new(0.5,-42,0,8)
+resetBtn.BackgroundColor3 = Color3.fromRGB(120,70,200)
+resetBtn.TextColor3 = Color3.new(1,1,1)
+resetBtn.Font = Enum.Font.GothamBold
+resetBtn.TextSize = 13
+resetBtn.Text = "Reset"
+resetBtn.Parent = main
+local resetCorner = Instance.new("UICorner", resetBtn); resetCorner.CornerRadius = UDim.new(0,6)
 
-local function startFrameDrag(input)
-	draggingFrame = true
-	dragStart = input.Position
-	startPos = mainFrame.Position
-end
+-- =====================
+-- Initialization: load saved values and set UI positions
+-- =====================
+local savedSpeed = getSaved("WalkSpeed",16)
+local savedJump = getSaved("JumpPower",50)
+local savedGravity = getSaved("Gravity",workspace.Gravity or 196.2)
 
-slider.InputBegan:Connect(function(input)
-	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-		startSliderDrag(input)
-	end
-end)
-
-sliderBack.InputBegan:Connect(function(input)
-	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-		startSliderDrag(input)
-	end
-end)
-
-title.InputBegan:Connect(function(input)
-	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-		startFrameDrag(input)
-	end
-end)
-
-userInput.InputChanged:Connect(function(input)
-	if (draggingSlider or draggingFrame) and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-		if draggingSlider then
-			updateSlider(input.Position.X)
-		elseif draggingFrame then
-			local delta = input.Position - dragStart
-			mainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+-- apply to player/humanoid/workspace (client-side)
+local function applyValues()
+	local char = player.Character
+	if char then
+		local humanoid = char:FindFirstChildOfClass("Humanoid")
+		if humanoid then
+			humanoid.WalkSpeed = savedSpeed
+			humanoid.JumpPower = savedJump
 		end
 	end
-end)
+	-- change workspace gravity (this will affect client; serverside gravity won't change here)
+	pcall(function() workspace.Gravity = savedGravity end)
+end
 
-userInput.InputEnded:Connect(function(input)
-	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-		draggingSlider = false
-		draggingFrame = false
+applyValues()
+
+-- helper to set knob position from value
+local function setSliderFromValue(back, fill, knob, min, max, value)
+	local width = back.AbsoluteSize.X
+	local percent = math.clamp((value - min) / (max - min), 0, 1)
+	local px = math.floor(percent * width)
+	fill.Size = UDim2.new(0, px, 1, 0)
+	knob.Position = UDim2.new(0, math.clamp(px - knob.AbsoluteSize.X/2, 0, math.max(width - knob.AbsoluteSize.X,0)), -0.8, 0)
+end
+
+-- Wait for AbsoluteSize (in case UI not calculated yet)
+local function waitForABS(frame)
+	if frame.AbsoluteSize.X == 0 then
+		frame:GetPropertyChangedSignal("AbsoluteSize"):Wait()
+	end
+end
+
+waitForABS(speedBack)
+waitForABS(jumpBack)
+waitForABS(gravBack)
+
+setSliderFromValue(speedBack, speedFill, speedKnob, 10, 100, savedSpeed)
+setSliderFromValue(jumpBack, jumpFill, jumpKnob, 20, 200, savedJump)
+setSliderFromValue(gravBack, gravFill, gravKnob, 0, 400, savedGravity)
+
+labelSpeed.Text = "WalkSpeed: "..tostring(savedSpeed)
+labelJump.Text = "JumpPower: "..tostring(savedJump)
+labelGravity.Text = "Gravity: "..tostring(math.floor(savedGravity))
+
+-- =====================
+-- Input handling (PC + Mobile)
+-- =====================
+local dragging = nil -- {back, fill, knob, min, max, setFunc}
+local dragStartPos, frameStartPos
+local draggingMain = false
+
+local function playFeedback()
+	pcall(function() clickSound:Play() end)
+	if HapticService_ok and HapticService then
+		pcall(function()
+			-- Basic vibration if supported
+			if HapticService:IsMotorSupported(Enum.VibrationMotor.Small) then
+				HapticService:SetMotor(Enum.UserInputType.Gamepad1, Enum.VibrationMotor.Small, 0.4)
+				task.wait(0.06)
+				HapticService:SetMotor(Enum.UserInputType.Gamepad1, Enum.VibrationMotor.Small, 0)
+			end
+		end)
+	end
+end
+
+-- slider update function
+local function updateSliderFromX(x, back, fill, knob, min, max, setter)
+	local width = back.AbsoluteSize.X
+	local rel = math.clamp(x - back.AbsolutePosition.X, 0, width)
+	fill.Size = UDim2.new(0, rel, 1, 0)
+	knob.Position = UDim2.new(0, math.clamp(rel - knob.AbsoluteSize.X/2, 0, math.max(width - knob.AbsoluteSize.X,0)), -0.8, 0)
+	local percent = rel / width
+	local val = math.floor(min + percent * (max - min))
+	setter(val)
+	playFeedback()
+end
+
+-- setters that save and apply
+local function setWalkSpeed(v)
+	savedSpeed = math.clamp(v,10,100)
+	save("WalkSpeed", savedSpeed)
+	applyValues()
+	labelSpeed.Text = "WalkSpeed: "..tostring(savedSpeed)
+end
+local function setJumpPower(v)
+	savedJump = math.clamp(v,20,200)
+	save("JumpPower", savedJump)
+	applyValues()
+	labelJump.Text = "JumpPower: "..tostring(savedJump)
+end
+local function setGravity(v)
+	savedGravity = math.clamp(v,0,400)
+	save("Gravity", savedGravity)
+	applyValues()
+	labelGravity.Text = "Gravity: "..tostring(math.floor(savedGravity))
+end
+
+-- connect drag events for a slider triple
+local function bindSlider(back, fill, knob, min, max, setter)
+	knob.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			dragging = {back, fill, knob, min, max, setter}
+			updateSliderFromX(input.Position.X, back, fill, knob, min, max, setter)
+		end
+	end)
+	back.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			dragging = {back, fill, knob, min, max, setter}
+			updateSliderFromX(input.Position.X, back, fill, knob, min, max, setter)
+		end
+	end)
+end
+
+bindSlider(speedBack, speedFill, speedKnob, 10, 100, setWalkSpeed)
+bindSlider(jumpBack, jumpFill, jumpKnob, 20, 200, setJumpPower)
+bindSlider(gravBack, gravFill, gravKnob, 0, 400, setGravity)
+
+UserInputService.InputChanged:Connect(function(input)
+	if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+		local back, fill, knob, min, max, setter = unpack(dragging)
+		updateSliderFromX(input.Position.X, back, fill, knob, min, max, setter)
+	end
+	if draggingMain and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+		local delta = input.Position - dragStartPos
+		main.Position = UDim2.new(frameStartPos.X.Scale, frameStartPos.X.Offset + delta.X, frameStartPos.Y.Scale, frameStartPos.Y.Offset + delta.Y)
 	end
 end)
 
--- Reset tốc độ
-resetButton.MouseButton1Click:Connect(function()
-	setSpeed(16)
-	slider.Position = UDim2.new(0, 0, -0.7, 0)
-	sliderFill.Size = UDim2.new(0, 0, 1, 0)
+UserInputService.InputEnded:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+		dragging = nil
+		draggingMain = false
+	end
 end)
+
+-- drag main by title
+title.InputBegan:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+		draggingMain = true
+		dragStartPos = input.Position
+		frameStartPos = main.Position
+	end
+end)
+
+-- Reset button
+resetBtn.MouseButton1Click:Connect(function()
+	setWalkSpeed(16)
+	setJumpPower(50)
+	setGravity(workspace.Gravity or 196.2)
+	-- reset UI positions
+	setSliderFromValue(speedBack, speedFill, speedKnob, 10, 100, savedSpeed)
+	setSliderFromValue(jumpBack, jumpFill, jumpKnob, 20, 200, savedJump)
+	setSliderFromValue(gravBack, gravFill, gravKnob, 0, 400, savedGravity)
+	playFeedback()
+end)
+
+-- Toggle open/close
+local visible = false
+toggle.MouseButton1Click:Connect(function()
+	visible = not visible
+	playFeedback()
+	if visible then
+		main.Visible = true
+		blur.Enabled = true
+		TweenService:Create(blur, TweenInfo.new(0.25), {Size = 10}):Play()
+		TweenService:Create(main, TweenInfo.new(0.28, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Position = UDim2.new(0.5, -140, 0.65, 0)}):Play()
+	else
+		TweenService:Create(blur, TweenInfo.new(0.25), {Size = 0}):Play()
+		TweenService:Create(main, TweenInfo.new(0.28, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Position = UDim2.new(0.5, -140, 1.2, 0)}):Play()
+		task.delay(0.32, function()
+			if not visible then main.Visible = false; blur.Enabled = false end
+		end)
+	end
+end)
+
+-- Ensure values re-applied on character added (respawn)
+player.CharacterAdded:Connect(function(char)
+	-- small delay to ensure Humanoid exists
+	task.wait(0.1)
+	applyValues()
+end)
+
+-- final: initial apply (again)
+applyValues()
