@@ -1,11 +1,3 @@
-local hitbox = Instance.new("Part")
-hitbox.Name = "Hitbox"
-hitbox.Size = Vector3.new(2, 2, 2)
-hitbox.Transparency = 0.5
-hitbox.BrickColor = BrickColor.new("Black") -- Màu đen
-hitbox.Anchored = false
-hitbox.CanCollide = false
-hitbox.Parent = game.Workspace
 -- Tạo UI
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Parent = game.Players.LocalPlayer.PlayerGui
@@ -18,117 +10,24 @@ Frame.BorderSizePixel = 2
 Frame.BorderColor3 = Color3.fromRGB(0, 0, 0)
 Frame.Parent = ScreenGui
 
--- Tạo button
-local button = Instance.new("TextButton")
-button.Size = UDim2.new(0, 100, 0, 50)
-button.Position = UDim2.new(0.5, -50, 0.5, -25)
-button.Text = "Lock đầu"
-button.Parent = Frame
+-- Tạo button để bật/tắt aimlock
+local aimlockButton = Instance.new("TextButton")
+aimlockButton.Size = UDim2.new(0, 100, 0, 30)
+aimlockButton.Position = UDim2.new(0.5, -50, 0.1, 0)
+aimlockButton.Text = "Aimlock: OFF"
+aimlockButton.Parent = Frame
 
--- Biến để kiểm tra trạng thái lock
-local isLocked = false
+-- Biến để kiểm tra trạng thái aimlock
+local aimlockEnabled = false
 
--- Hàm để lock đầu người chơi
-local function lockHead()
-    if not isLocked then
-        isLocked = true
-        game.Players.LocalPlayer.Character.Humanoid.PlatformStand = true
-        game.Players.LocalPlayer.Character.Humanoid.WalkSpeed = 0
-        game.Pl
-        -- Tạo UI
-local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Parent = game.Players.LocalPlayer.PlayerGui
-
-local Frame = Instance.new("Frame")
-Frame.Size = UDim2.new(0, 200, 0, 200)
-Frame.Position = UDim2.new(0.5, -100, 0.5, -100)
-Frame.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-Frame.BorderSizePixel = 2
-Frame.BorderColor3 = Color3.fromRGB(0, 0, 0)
-Frame.Parent = ScreenGui
-
--- Tạo textbox để nhập tốc độ di chuyển
-local speedTextbox = Instance.new("TextBox")
-speedTextbox.Size = UDim2.new(0, 100, 0, 30)
-speedTextbox.Position = UDim2.new(0.5, -50, 0.1, 0)
-speedTextbox.Text = "16"
-speedTextbox.Parent = Frame
-
--- Tạo textbox để nhập sức nhảy
-local jumpTextbox = Instance.new("TextBox")
-jumpTextbox.Size = UDim2.new(0, 100, 0, 30)
-jumpTextbox.Position = UDim2.new(0.5, -50, 0.3, 0)
-jumpTextbox.Text = "50"
-jumpTextbox.Parent = Frame
-
--- Tạo button để áp dụng tốc độ di chuyển và sức nhảy
-local applyButton = Instance.new("TextButton")
-applyButton.Size = UDim2.new(0, 100, 0, 30)
-applyButton.Position = UDim2.new(0.5, -50, 0.5, 0)
-applyButton.Text = "Áp dụng"
-applyButton.Parent = Frame
-
--- Hàm để áp dụng tốc độ di chuyển và sức nhảy
-local function applySpeedAndJump()
-    local speed = tonumber(speedTextbox.Text)
-    local jump = tonumber(jumpTextbox.Text)
-    game.Players.LocalPlayer.Character.Humanoid.WalkSpeed = speed
-    game.Players.LocalPlayer.Character.Humanoid.JumpPower = jump
+-- Hàm để bật/tắt aimlock
+local function toggleAimlock()
+    aimlockEnabled = not aimlockEnabled
+    if aimlockEnabled then
+        aimlockButton.Text = "Aimlock: ON"
+    else
+        aimlockButton.Text = "Aimlock: OFF"
+    end
 end
 
--- Kết nối hàm áp dụng tốc độ di chuyển và sức nhảy
-applyButton.MouseButton1Click:Connect(applySpeedAndJump)
--- Tạo UI
-local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Parent = game.Players.LocalPlayer.PlayerGui
-
--- Hàm để tạo ESP
-local function createESP(player)
-    -- Tạo tên người chơi
-    local nameLabel = Instance.new("TextLabel")
-    nameLabel.Size = UDim2.new(0, 100, 0, 20)
-    nameLabel.Position = UDim2.new(0.5, -50, 0.1, 0)
-    nameLabel.Text = player.Name
-    nameLabel.Parent = ScreenGui
-
-    -- Tạo thanh máu
-    local healthBar = Instance.new("Frame")
-    healthBar.Size = UDim2.new(0, 100, 0, 10)
-    healthBar.Position = UDim2.new(0.5, -50, 0.2, 0)
-    healthBar.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-    healthBar.Parent = ScreenGui
-
-    -- Tạo dây màu trắng định vị người chơi
-    local line = Instance.new("Line")
-    line.Thickness = 2
-    line.Color = Color3.fromRGB(255, 255, 255)
-    line.Parent = ScreenGui
-
-    -- Hàm để cập nhật ESP
-    local function updateESP()
-        -- Cập nhật tên người chơi
-        nameLabel.Text = player.Name
-
-        -- Cập nhật thanh máu
-        healthBar.Size = UDim2.new(0, player.Character.Humanoid.Health / player.Character.Humanoid.MaxHealth * 100, 0, 10)
-
-        -- Cập nhật dây màu trắng định vị người chơi
-        line.From = Vector2.new(game.Players.LocalPlayer.Character.HumanoidRootPart.Position.X, game.Players.LocalPlayer.Character.HumanoidRootPart.Position.Y)
-        line.To = Vector2.new(player.Character.HumanoidRootPart.Position.X, player.Character.HumanoidRootPart.Position.Y)
-        -- Tạo dây màu trắng định vị người chơi
-local line = Instance.new("Part")
-line.Size = Vector3.new(0.1, 0.1, 1)
-line.Color = Color3.fromRGB(255, 255, 255)
-line.Anchored = true
-line.CanCollide = false
-line.Parent = game.Workspace
-
--- Hàm để cập nhật dây màu trắng định vị người chơi
-local function updateLine()
-    line.CFrame = CFrame.new(game.Players.LocalPlayer.Character.HumanoidRootPart.Position, player.Character.HumanoidRootPart.Position)
-    line.Size = Vector3.new(0.1, 0.1, (game.Players.LocalPlayer.Character.HumanoidRootPart.Position - player.Character.HumanoidRootPart.Position).Magnitude)
-end
--- Kết nối hàm cập nhật dây màu trắng định vị người chơi
-game:GetService("RunService").RenderStepped:Connect(updateLine)
-
-        
+-- Kết nối hàm
